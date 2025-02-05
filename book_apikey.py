@@ -1,13 +1,26 @@
 from flask import Flask, request, jsonify
-from flask_jwt_extended import JWTManager, jwt_required, create_access_token
-from datetime import timedelta
-
+#from flask_basicauth import BasicAuth
+from functools import wraps
 
 app = Flask(__name__)
 
-# Set up JWT
-app.config['JWT_SECRET_KEY'] = 'your_jwt_secret_key'
-jwt = JWTManager(app)
+# Basic authentication configuration
+#app.config['BASIC_AUTH_USERNAME'] = 'username'
+#app.config['BASIC_AUTH_PASSWORD'] = 'password'
+#basic_auth = BasicAuth(app)
+
+# Replace 'your_api_key' with your actual API key
+API_KEY = 'your_api_key'
+
+# API key authentication decorator
+def require_api_key(func):
+    @wraps(func)
+    def decorated(*args, **kwargs):
+        if request.headers.get('Api-Key') == API_KEY:
+            return func(*args, **kwargs)
+        else:
+            return jsonify({"error": "Unauthorized"}), 401
+    return decorated
 
 # Sample data (in-memory database for simplicity)
 books = [
@@ -20,37 +33,10 @@ books = [
 def hello_world():
     return "<p>Hello, World!</p>"
 
-# Authentication endpoint to get JWT token
-@app.route('/login', methods=['POST'])
-def login():
-    data = request.get_json()
-    username = data.get('username', None)
-    password = data.get('password', None)
-
-    # In a real-world scenario, you would check the credentials against a database
-    if username == 'user' and password == 'pass':
-        access_token = create_access_token(identity=username, expires_delta=timedelta(minutes=1))
-        return jsonify(access_token=access_token), 200
-    else:
-        return jsonify({"error": "Invalid credentials"}), 401
-
-# CRUD operations with JWT authentication
-@app.route('/books', methods=['GET'])
-@jwt_required()
-def get_all_books():
-    return jsonify({"books": books})
-
-@app.route('/books/<int:book_id>', methods=['GET'])
-@jwt_required()
-def get_book(book_id):
-    book = next((b for b in books if b["id"] == book_id), None)
-    if book:
-        return jsonify(book)
-    else:
-        return jsonify({"error": "Book not found"}), 404
-
+# Create (POST) operation
 @app.route('/books', methods=['POST'])
-@jwt_required()
+#@basic_auth.required
+@require_api_key
 def create_book():
     data = request.get_json()
 
@@ -63,8 +49,28 @@ def create_book():
     books.append(new_book)
     return jsonify(new_book), 201
 
+# Read (GET) operation - Get all books
+@app.route('/books', methods=['GET'])
+#@basic_auth.required
+@require_api_key
+def get_all_books():
+    return jsonify({"books": books})
+
+# Read (GET) operation - Get a specific book by ID
+@app.route('/books/<int:book_id>', methods=['GET'])
+#@basic_auth.required
+@require_api_key
+def get_book(book_id):
+    book = next((b for b in books if b["id"] == book_id), None)
+    if book:
+        return jsonify(book)
+    else:
+        return jsonify({"error": "Book not found"}), 404
+
+# Update (PUT) operation
 @app.route('/books/<int:book_id>', methods=['PUT'])
-@jwt_required()
+#@basic_auth.required
+@require_api_key
 def update_book(book_id):
     book = next((b for b in books if b["id"] == book_id), None)
     if book:
@@ -74,12 +80,16 @@ def update_book(book_id):
     else:
         return jsonify({"error": "Book not found"}), 404
 
+# Delete operation
 @app.route('/books/<int:book_id>', methods=['DELETE'])
-@jwt_required()
+#@basic_auth.required
+@require_api_key
 def delete_book(book_id):
     global books
     books = [b for b in books if b["id"] != book_id]
     return jsonify({"message": "Book deleted successfully"})
 
+
 if __name__ == '__main__':
-    app.run(host="0.0.0.0", port=5004, debug=True)
+    app.run(host="0.0.0.0", port=5001, debug=True)
+
